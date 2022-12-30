@@ -9,4 +9,7 @@ Picture of the populated printed circuit board above
  ![Schematic](https://user-images.githubusercontent.com/5246863/210096393-63ad9af6-b74b-4e90-86b4-8053dc039929.PNG)
 Electrical schematic above
 
-  The example program provided was done in the Arduino IDE
+  The example program provided was done in the Arduino IDE - 20221216_EW309_Turret_Nucleo_L432KC_BNO055_MotConL298_PID.ino
+  
+  The PCB and Schematic files are also provided and were done using Express PCB Plus
+  
