@@ -10,6 +10,7 @@ Picture of the populated printed circuit board above
 Electrical schematic above
 
   The example program provided was done in the Arduino IDE - 20230119_EW309_NucleoL432KC_JoesTest.ino
+  
   Nucleo can be reprogrammed without compilation by dragging the .bin file to the Nucleo drive
   
   The PCB and Schematic files are also provided and were done using Express PCB Plus
