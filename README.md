@@ -15,3 +15,9 @@ Electrical schematic above
   
   The PCB and Schematic files are also provided and were done using Express PCB Plus
   
+![ExpressPCBsnapshot_Top](https://user-images.githubusercontent.com/5246863/214311960-8675de82-d033-4f10-a195-b6982a7e78f9.JPG)
+  Top Printed Circuit Board Express PCB Layout
+  
+  
+![ExpressPCBsnapshot_Bottom](https://user-images.githubusercontent.com/5246863/214312068-1767d38f-51f8-480b-b7b5-29cbe34a29fe.JPG)
+  Bottom Printed Circuit Board Express PCB Layout
