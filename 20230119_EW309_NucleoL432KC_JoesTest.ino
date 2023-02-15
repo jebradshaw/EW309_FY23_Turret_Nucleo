@@ -1,20 +1,29 @@
 //Use Nucleo L432KC to interface with BNO-055 and motors for the EW309 Turret
-// J. Bradshaw 20230215
-
+// J. Bradshaw 20230119
+// NOTE1: At the time of this example, the Adafruit_BNO055.h library from the below gitHub site places the adafruit_bno055_opmode_t typedef 
+//  OUTSIDE the class definition!  So make sure to note the usage for bno.setMode()
+//  Adafruit_BNO055::OPERATION_MODE_NDOF_FMC_OFF    vs.   OPERATION_MODE_NDOF_FMC_OFF (inside class vs. outside class)
+// NOTE2: Change Tools-> C Runtime Library -> Newlib Nano 
 #include <Wire.h>
 #include <Adafruit_Sensor.h>    // https://github.com/adafruit/Adafruit_Sensor
-#include <Adafruit_BNO055.h>    // https://github.com/adafruit/Adafruit_BNO055/blob/master/Adafruit_BNO055.h
- // Note that the OPERATION_MODE_NDOF_FMC_OFF is not inside the Adafruit_BNO055 class in the latest version
- // of the library so usage should be:  bno.setMode(OPERATION_MODE_NDOF_FMC_OFF);
+#include <Adafruit_BNO055.h>    // https://github.com/adafruit/Adafruit_BNO055
 #include <utility/imumaths.h>
-#include <PID_v1.h>             // https://github.com/br3ttb/Arduino-PID-Library/blob/master/PID_v1.h
+#include <PID_v1.h>             // https://github.com/br3ttb/Arduino-PID-Library
 
 #define CONTROL_LOOP_DELAY_MS 20
 #define YAW640_RATIO    (.981746f)      //for some reason, the YAW RADIAN measurement from the BNO
                                         // yeilds 0.0 - 6.40 instead of 2*PI, this scales it accordingly
 // Setup digital I/O mapping
+#define I2C_SDA   D0
+#define I2C_SCL   D1
 #define FIRE_PIN  D3
 #define FEED_PIN  D11
+#define MOT1_EN   A1
+#define MOT1_IN2  A2
+#define MOT1_IN1  A0
+#define MOT2_EN   A5
+#define MOT2_IN2  A3
+#define MOT2_IN1  A4
 
 #define TO_RAD  0.017453292 //PI/180.0
 
@@ -24,6 +33,10 @@ Adafruit_BNO055 bno = Adafruit_BNO055(55);
 // Timer variables for PID loops
 unsigned long pitchTimeLast;
 unsigned long yawTimeLast;
+
+// flags for serial output
+static int yg_flag = 0;
+static int pg_flag = 0;
 
 //Specify the links and initial tuning parameters
 double yawSetpoint, yawInput, yawOutput = 0.0;
@@ -54,6 +67,7 @@ int fire_flag = 0;
 int fireNumTimes = 0;
 int firing = 0; // 1 is currently firing, 0 is not firing
 
+// Yaw Axis motor movement is mapped to Motor Port 1
 void mot_control_yaw(float dc){    
   if(dc>1.0)
       dc=1.0;
@@ -63,22 +77,23 @@ void mot_control_yaw(float dc){
   dc *= 255.0;    // this scale may be incorrect with 20KHz PWM freq
          
   if(dc > 0.001){
-    digitalWrite(A2, LOW);
-    digitalWrite(A0, HIGH);
-    analogWrite(A1, dc);
+    digitalWrite(MOT1_IN2, LOW);
+    digitalWrite(MOT1_IN1, HIGH);
+    analogWrite(MOT1_EN, dc);
   }
   else if(dc < -0.001){
-    digitalWrite(A0, LOW);
-    digitalWrite(A2, HIGH);       
-    analogWrite(A1, abs(int(dc)));
+    digitalWrite(MOT1_IN1, LOW);
+    digitalWrite(MOT1_IN2, HIGH);       
+    analogWrite(MOT1_EN, abs(int(dc)));
   }
   else{
-    digitalWrite(A2, LOW);
-    digitalWrite(A0, LOW);
-    analogWrite(A1, 0);
+    digitalWrite(MOT1_IN2, LOW);
+    digitalWrite(MOT1_IN1, LOW);
+    analogWrite(MOT1_EN, 0);
   }         
 }
 
+// Pitch Axis motor movement is mapped to Motor Port 2
 void mot_control_pitch(float dc){    
   if(dc>1.0)
       dc=1.0;
@@ -88,19 +103,19 @@ void mot_control_pitch(float dc){
   dc *= 255.0;    // this scale may be incorrect with 20KHz PWM freq
          
   if(dc > 0.001){
-    digitalWrite(A3, LOW);
-    digitalWrite(A4, HIGH);
-    analogWrite(A5, dc);
+    digitalWrite(MOT2_IN2, LOW);
+    digitalWrite(MOT2_IN1, HIGH);
+    analogWrite(MOT2_EN, dc);
   }
   else if(dc < -0.001){
-    digitalWrite(A4, LOW);
-    digitalWrite(A3, HIGH);       
-    analogWrite(A5, abs(int(dc)));
+    digitalWrite(MOT2_IN1, LOW);
+    digitalWrite(MOT2_IN2, HIGH);       
+    analogWrite(MOT2_EN, abs(int(dc)));
   }
   else{
-    digitalWrite(A3, LOW);
-    digitalWrite(A4, LOW);
-    analogWrite(A5, 0);
+    digitalWrite(MOT2_IN2, LOW);
+    digitalWrite(MOT2_IN1, LOW);
+    analogWrite(MOT2_EN, 0);
   }         
 }
 
@@ -228,26 +243,26 @@ void setup() {
   delay(200);
   Serial.begin(115200);  
   Serial.print("EW309 Motor Test running.");
-  Wire.setSDA(D0); // set the I2C pins from default to D0-SDA
-  Wire.setSCL(D1); // D1-SCL
+  Wire.setSDA(I2C_SDA); // set the I2C pins from default to D0-SDA
+  Wire.setSCL(I2C_SCL); // D1-SCL
   Wire.begin();
 
   analogWriteFrequency(20000); // set output PWM frequency to 20KHz
 
   // Setup Motor Control Outputs for Pitch
-  //digitalWrite(A5, LOW);   // sets the ME output LOW initially  
-  digitalWrite(A3, LOW);   // sets the IN1 ouput LOW
-  digitalWrite(A4, LOW);   // sets the IN2 ouput LOW
-  //pinMode(A5, OUTPUT);  // PWM output for L289
-  pinMode(A3, OUTPUT);  // IN1
-  pinMode(A4, OUTPUT);  // IN2 
+  //digitalWrite(MOT2_EN, LOW);   // sets the ME output LOW initially  
+  digitalWrite(MOT2_IN2, LOW);   // sets the IN1 ouput LOW
+  digitalWrite(MOT2_IN1, LOW);   // sets the IN2 ouput LOW
+  //pinMode(MOT2_EN, OUTPUT);  // PWM output for L289
+  pinMode(MOT2_IN2, OUTPUT);  // IN1
+  pinMode(MOT2_IN1, OUTPUT);  // IN2 
   
   // Setup Motor Control Outputs for Yaw
-  //digitalWrite(A1, LOW);   // sets the ME output LOW initially  
-  digitalWrite(A2, LOW);   // sets the IN1 ouput LOW
+  //digitalWrite(MOT1_EN, LOW);   // sets the ME output LOW initially  
+  digitalWrite(MOT1_IN1, LOW);   // sets the IN1 ouput LOW
   digitalWrite(A0, LOW);   // sets the IN2 ouput LOW
-  //pinMode(A1, OUTPUT);  // PWM output for L289
-  pinMode(A2, OUTPUT);  // IN1
+  //pinMode(MOT1_EN, OUTPUT);  // PWM output for L289
+  pinMode(MOT1_IN1, OUTPUT);  // IN1
   pinMode(A0, OUTPUT);  // IN2 
 
   
@@ -270,6 +285,7 @@ void setup() {
   bno.setExtCrystalUse(true);
   bno.setAxisRemap(Adafruit_BNO055::REMAP_CONFIG_P1); // P0 - P7, see dataseet
   bno.setAxisSign(Adafruit_BNO055::REMAP_SIGN_P1);    // P0 - P7, see dataseet
+  //bno.setMode(Adafruit_BNO055::OPERATION_MODE_NDOF_FMC_OFF); // turn off the fusion mode
   bno.setMode(OPERATION_MODE_NDOF_FMC_OFF); // turn off the fusion mode
   
   //turn the PID on yaw
@@ -300,12 +316,20 @@ void loop() {
 //  if(pitchMeas > PI)
 //        pitchMeas = -(PI - yawMeas) - PI;
         
-  Serial.printf("%7.2f %7.2f yKp=%.2f yKi=%.2f yKd=%.2f pSP=%.3f ySP=%.3f\r\n", 
+  Serial.printf("Yaw=%7.2f Pitch=%7.2f pSP=%.3f ySP=%.3f", 
         yawMeas,
-        pitchMeas, 
-        yawKp, yawKi, yawKd,
+        pitchMeas,         
         pitchSetpoint,  
         yawSetpoint); 
+  
+  if(yg_flag!=0)
+    Serial.printf(" yKp=%.2f yKi=%.2f yKd=%.2f", yawKp, yawKi, yawKd);
+  
+  if(pg_flag!=0)
+    Serial.printf(" pKp=%.2f pKi=%.2f pKd=%.2f", pitchKp, pitchKi, pitchKd);
+    
+  // append a carriage return to the transmited data
+  Serial.printf("\r\n");
   
   //loop for yaw control - 20 millisecond update rate
   if(millis() >= yawTimeLast + CONTROL_LOOP_DELAY_MS){ 
@@ -341,10 +365,10 @@ void loop() {
         Serial.printf(" SINGLE CHARACTER COMMANDS  \r\n");
         Serial.printf("'w' - move gun pitch up\r\n");
         Serial.printf("'z' - move gun pitch down\r\n");
-        Serial.printf("'a' - move gun yaw left\r\n");
-        delay(10);
+        Serial.printf("'a' - move gun yaw left\r\n");        
         Serial.printf("'s' - move gun yaw right\r\n");
         Serial.printf("'r' - reset the BNO-055 IMU\r\n\r\n");
+        delay(10);
         Serial.printf(" STRING COMMANDS (follo0wed by carriage return '\\r') \r\n");
         Serial.printf("testmot\\r - test the motors on the pan/tilt head\r\n");
         delay(10);
@@ -361,6 +385,10 @@ void loop() {
         Serial.printf("feed x.x\\r - turn on feed motor for x.x seconds\r\n");
         Serial.printf("fire x\\r - Fire x number of times\r\n");
         Serial.printf("fire\\r - Fire one shot\r\n");
+        delay(10);
+        Serial.printf("yg X\\r - X is serial Yaw gains in output (1=ON, 0=OFF)\r\n");
+        Serial.printf("pg X\\r - X is serial Pitch gains in output (1=ON, 0=OFF)\r\n");
+        
 
         // clar out any additional characters in the Serial buffer
         while(Serial.available()){
@@ -405,6 +433,7 @@ void loop() {
         bno.setExtCrystalUse(true);
         bno.setAxisRemap(Adafruit_BNO055::REMAP_CONFIG_P1); // P0 - P7, see dataseet
         bno.setAxisSign(Adafruit_BNO055::REMAP_SIGN_P1);    // P0 - P7, see dataseet
+        //bno.setMode(Adafruit_BNO055::OPERATION_MODE_NDOF_FMC_OFF); // turn off the fusion mode
         bno.setMode(OPERATION_MODE_NDOF_FMC_OFF); // turn off the fusion mode
 
         yawSetpoint = 0.0;
@@ -640,6 +669,23 @@ void loop() {
           delay(200);
         }
       }
+
+      // Turn off the gains for the Yaw PID in the serial output
+      if(strncmp(str, "yg 0", 4) == 0){   
+        yg_flag = 0;
+      }
+      if(strncmp(str, "yg 1", 4) == 0){   
+        yg_flag = 1;
+      }
+
+      // Turn off the gains for the Pitch PID in the serial output
+      if(strncmp(str, "pg 0", 4) == 0){   
+        pg_flag = 0;
+      }
+      if(strncmp(str, "pg 1", 4) == 0){   
+        pg_flag = 1;
+      }
+      
       //clear out any garbage in buffer
       while(Serial.available()){
         char c = Serial.read();
