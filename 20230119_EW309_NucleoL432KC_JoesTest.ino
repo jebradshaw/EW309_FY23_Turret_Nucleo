@@ -1,9 +1,11 @@
 //Use Nucleo L432KC to interface with BNO-055 and motors for the EW309 Turret
-// J. Bradshaw 20230119
+// J. Bradshaw 20230215
 
 #include <Wire.h>
 #include <Adafruit_Sensor.h>    // https://github.com/adafruit/Adafruit_Sensor
 #include <Adafruit_BNO055.h>    // https://github.com/adafruit/Adafruit_BNO055/blob/master/Adafruit_BNO055.h
+ // Note that the OPERATION_MODE_NDOF_FMC_OFF is not inside the Adafruit_BNO055 class in the latest version
+ // of the library so usage should be:  bno.setMode(OPERATION_MODE_NDOF_FMC_OFF);
 #include <utility/imumaths.h>
 #include <PID_v1.h>             // https://github.com/br3ttb/Arduino-PID-Library/blob/master/PID_v1.h
 
@@ -268,7 +270,7 @@ void setup() {
   bno.setExtCrystalUse(true);
   bno.setAxisRemap(Adafruit_BNO055::REMAP_CONFIG_P1); // P0 - P7, see dataseet
   bno.setAxisSign(Adafruit_BNO055::REMAP_SIGN_P1);    // P0 - P7, see dataseet
-  bno.setMode(Adafruit_BNO055::OPERATION_MODE_NDOF_FMC_OFF); // turn off the fusion mode
+  bno.setMode(OPERATION_MODE_NDOF_FMC_OFF); // turn off the fusion mode
   
   //turn the PID on yaw
   yawPID.SetMode(AUTOMATIC);
@@ -403,7 +405,7 @@ void loop() {
         bno.setExtCrystalUse(true);
         bno.setAxisRemap(Adafruit_BNO055::REMAP_CONFIG_P1); // P0 - P7, see dataseet
         bno.setAxisSign(Adafruit_BNO055::REMAP_SIGN_P1);    // P0 - P7, see dataseet
-        bno.setMode(Adafruit_BNO055::OPERATION_MODE_NDOF_FMC_OFF); // turn off the fusion mode
+        bno.setMode(OPERATION_MODE_NDOF_FMC_OFF); // turn off the fusion mode
 
         yawSetpoint = 0.0;
         pitchSetpoint = 0.0;
